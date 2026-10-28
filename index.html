@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>우리반 자리 뽑기 & 자리 배치 시스템</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;700;800;900&display=swap');
+    body { font-family: 'Pretendard', sans-serif; }
+    @keyframes popIn {
+      0% { transform: scale(0.8); opacity: 0; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    .animate-pop { animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen p-3 sm:p-5 select-none">
+
+  <div class="max-w-5xl mx-auto space-y-4">
+    <!-- 상단 헤더 & 컨트롤 패널 -->
+    <header class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 backdrop-blur shadow-xl flex flex-wrap items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-500 to-emerald-500 flex items-center justify-center font-black text-xl shadow-lg text-white">
+          <i class="fa-solid fa-chair"></i>
+        </div>
+        <div>
+          <h1 class="text-xl sm:text-2xl font-black tracking-tight text-white flex items-center gap-2">
+            우리반 자리 뽑기 시스템
+            <span class="text-xs font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">자동 저장</span>
+          </h1>
+          <p class="text-xs text-slate-400">자리를 클릭해 사용할 칸을 지정하고 무작위로 번호를 배치하세요.</p>
+        </div>
+      </div>
+
+      <!-- 메인 액션 버튼 그룹 -->
+      <div class="flex flex-wrap items-center gap-2">
+        <div class="flex items-center bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800 text-xs gap-2">
+          <span class="text-slate-400">총 학생 수:</span>
+          <input type="number" id="inputTotalStudents" min="1" max="100" value="24" class="w-14 bg-slate-900 text-amber-300 font-bold px-2 py-1 rounded text-center border border-slate-700 focus:outline-none">
+          <span class="text-slate-400">명</span>
+        </div>
+        <button id="btnToggleMode" class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs sm:text-sm border border-slate-700 flex items-center gap-1.5 transition shadow">
+          <i class="fa-solid fa-gear text-indigo-400" id="modeIcon"></i> <span id="modeText">자리 편집 모드</span>
+        </button>
+        <button id="btnRunShuffle" class="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-xs sm:text-sm flex items-center gap-2 shadow-lg shadow-emerald-600/30 transition active:scale-95">
+          <i class="fa-solid fa-shuffle"></i> 🎲 자리 섞기 시작!
+        </button>
+      </div>
+    </header>
+
+    <!-- 메인 대시보드 (격자판 영역) -->
+    <main class="bg-slate-900 border border-slate-800 rounded-3xl p-4 sm:p-6 shadow-2xl flex flex-col items-center">
+      
+      <!-- 칠판 영역 (요청하신 맨 위 칠판 표시) -->
+      <div class="w-full max-w-4xl mb-6">
+        <div class="bg-gradient-to-r from-emerald-900 via-emerald-800 to-emerald-900 border-4 border-amber-800/80 rounded-2xl py-3 px-6 text-center shadow-xl relative overflow-hidden">
+          <div class="absolute inset-x-0 top-0 h-1 bg-emerald-700/50"></div>
+          <div class="flex items-center justify-center gap-2 text-emerald-200 font-black tracking-widest text-lg sm:text-xl drop-shadow">
+            <i class="fa-solid fa-chalkboard text-amber-300"></i> 칠 판 (BLACKBOARD) <i class="fa-solid fa-chalkboard text-amber-300"></i>
+          </div>
+          <div class="text-[11px] text-emerald-300/80 font-medium mt-0.5">교탁 방향</div>
+        </div>
+      </div>
+
+      <!-- 편집 모드 안내 배너 -->
+      <div id="editModeBanner" class="hidden w-full max-w-4xl mb-4 bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 text-xs text-amber-200 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <i class="fa-solid fa-triangle-exclamation text-amber-400 text-sm"></i>
+          <span><strong>[자리 편집 모드]</strong> 칸을 클릭하면 우리반 좌석으로 활성화(초록색)되거나 비활성화(어두운색)됩니다.</span>
+        </div>
+        <button id="btnCloseEditMode" class="px-3 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-lg text-xs transition">편집 완료</button>
+      </div>
+
+      <!-- 10x10 그리드 컨테이너 -->
+      <div class="w-full overflow-x-auto pb-4">
+        <div id="gridContainer" class="grid grid-cols-10 gap-1.5 sm:gap-2 min-w-[560px] max-w-4xl mx-auto p-2">
+          <!-- JS로 100개 셀 동적 렌더링 -->
+        </div>
+      </div>
+
+      <!-- 하단 통계 및 편의 도구 -->
+      <div class="w-full max-w-4xl mt-4 pt-4 border-t border-slate-800/80 flex flex-wrap items-center justify-between text-xs text-slate-400 gap-2">
+        <div class="flex items-center gap-3">
+          <span>활성화된 좌석: <strong id="activeSeatCount" class="text-emerald-400">0</strong>석</span>
+          <span>설정된 학생 수: <strong id="assignedStudentCount" class="text-amber-400">24</strong>명</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <button id="btnClearAllSeats" class="hover:text-rose-400 transition underline">모든 자리 비우기</button>
+          <span>|</span>
+          <button id="btnResetDefaultGrid" class="hover:text-amber-400 transition underline">기본 배치(24석) 불러오기</button>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- [커스텀 알림/확인 모달] -->
+  <div id="customDialogModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-xs w-full p-5 text-center shadow-2xl">
+      <div class="w-10 h-10 rounded-full bg-indigo-500/20 text-indigo-400 mx-auto flex items-center justify-center text-lg mb-3">
+        <i class="fa-solid fa-bell" id="dialogIcon"></i>
+      </div>
+      <p id="dialogMessage" class="text-sm font-bold text-white mb-4 leading-relaxed"></p>
+      <div class="flex gap-2 justify-center" id="dialogButtons">
+        <button id="btnDialogCancel" class="hidden flex-1 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition">취소</button>
+        <button id="btnDialogConfirm" class="flex-1 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs transition">확인</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // --- [0] 커스텀 알림/확인 함수 ---
+    function showNotice(message) {
+      const modal = document.getElementById('customDialogModal');
+      document.getElementById('dialogMessage').textContent = message;
+      document.getElementById('btnDialogCancel').classList.add('hidden');
+      const confirmBtn = document.getElementById('btnDialogConfirm');
+      confirmBtn.onclick = () => modal.classList.add('hidden');
+      modal.classList.remove('hidden');
+    }
+
+    function showConfirm(message, onYes) {
+      const modal = document.getElementById('customDialogModal');
+      document.getElementById('dialogMessage').textContent = message;
+      const cancelBtn = document.getElementById('btnDialogCancel');
+      const confirmBtn = document.getElementById('btnDialogConfirm');
+      cancelBtn.classList.remove('hidden');
+      cancelBtn.onclick = () => modal.classList.add('hidden');
+      confirmBtn.onclick = () => {
+        modal.classList.add('hidden');
+        if (typeof onYes === 'function') onYes();
+      };
+      modal.classList.remove('hidden');
+    }
+
+    // --- [1] 데이터 구조 및 로컬스토리지 저장 ---
+    const STORAGE_KEY_GRID = 'seat_picker_grid_state_v1';
+    const STORAGE_KEY_STUDENTS = 'seat_picker_total_students_v1';
+
+    // 10x10 그리드 배열 (총 100개 셀)
+    // 각 셀: { id: 0~99, active: boolean, studentNum: number | null }
+    let gridData = [];
+    let isEditMode = false;
+    let totalStudents = parseInt(localStorage.getItem(STORAGE_KEY_STUDENTS), 10) || 24;
+
+    function initDefaultGrid() {
+      gridData = [];
+      for (let i = 0; i < 100; i++) {
+        // 기본 24석(4열 x 6행 형태 등을 중앙에 배치)
+        // 행: i / 10, 열: i % 10 -> 2~7열, 2~5행 정도를 기본 활성화
+        const row = Math.floor(i / 10);
+        const col = i % 10;
+        const defaultActive = (row >= 2 && row <= 7 && col >= 2 && col <= 7 && (row - 2) * 6 + (col - 2) < 24);
+        gridData.push({
+          id: i,
+          active: defaultActive,
+          studentNum: null
+        });
+      }
+    }
+
+    function loadGridData() {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY_GRID);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length === 100) {
+            gridData = parsed;
+            return;
+          }
+        }
+      } catch (e) {}
+      initDefaultGrid();
+    }
+
+    function saveGridData() {
+      try {
+        localStorage.setItem(STORAGE_KEY_GRID, JSON.stringify(gridData));
+        localStorage.setItem(STORAGE_KEY_STUDENTS, String(totalStudents));
+      } catch (e) {}
+    }
+
+    // --- [2] 그리드 렌더링 ---
+    function renderGrid() {
+      const container = document.getElementById('gridContainer');
+      container.innerHTML = '';
+
+      let activeCount = 0;
+
+      gridData.forEach((cell) => {
+        if (cell.active) activeCount++;
+
+        const div = document.createElement('div');
+        div.className = `aspect-square rounded-xl border flex flex-col items-center justify-center font-bold text-xs sm:text-sm transition-all relative select-none ${
+          cell.active
+            ? cell.studentNum !== null
+              ? 'bg-gradient-to-br from-indigo-600 to-violet-700 border-indigo-400 text-white shadow-lg shadow-indigo-600/30 animate-pop'
+              : isEditMode
+                ? 'bg-emerald-950/80 border-emerald-500 text-emerald-300 cursor-pointer hover:bg-emerald-900 ring-2 ring-emerald-500/40'
+                : 'bg-slate-950 border-slate-700 text-slate-300 shadow'
+            : isEditMode
+              ? 'bg-slate-900/50 border-dashed border-slate-700 text-slate-600 cursor-pointer hover:bg-slate-800'
+              : 'bg-slate-950/40 border-slate-900 text-slate-700 opacity-30 cursor-not-allowed'
+        }`;
+
+        // 셀 내부 내용 구성
+        if (cell.active) {
+          if (cell.studentNum !== null) {
+            div.innerHTML = `
+              <span class="text-[10px] text-indigo-200 uppercase tracking-tighter">좌석</span>
+              <span class="text-base sm:text-lg font-black">${cell.studentNum}</span>
+            `;
+          } else {
+            div.innerHTML = `
+              <span class="text-[11px] text-slate-400">${cell.id + 1}</span>
+            `;
+          }
+        } else {
+          div.innerHTML = `<span class="text-[10px] text-slate-700">·</span>`;
+        }
+
+        // 셀 클릭 이벤트 (편집 모드일 때만 활성/비활성 토글)
+        div.addEventListener('click', () => {
+          if (!isEditMode) return;
+          cell.active = !cell.active;
+          if (!cell.active) cell.studentNum = null;
+          saveGridData();
+          renderGrid();
+        });
+
+        container.appendChild(div);
+      });
+
+      document.getElementById('activeSeatCount').textContent = activeCount;
+      document.getElementById('assignedStudentCount').textContent = totalStudents;
+    }
+
+    // --- [3] 무작위 자리 섞기 (랜덤 번호 추첨) ---
+    function runSeatShuffle() {
+      const activeCells = gridData.filter(c => c.active);
+      const activeCount = activeCells.length;
+
+      if (activeCount === 0) {
+        showNotice('활성화된 자리가 없습니다. [자리 편집 모드]를 눌러 자리를 먼저 지정해주세요!');
+        return;
+      }
+
+      if (totalStudents > activeCount) {
+        showConfirm(`현재 활성화된 자리는 ${activeCount}석인데 학생 수는 ${totalStudents}명입니다. 자리 수를 늘리거나 학생 수를 조정하시겠습니까?`, () => {
+          isEditMode = true;
+          updateEditModeUI();
+        });
+        return;
+      }
+
+      // 기존 배치 번호 초기화
+      gridData.forEach(c => c.studentNum = null);
+
+      // 1번부터 totalStudents까지 번호 생성 후 셔플 (Fisher-Yates Shuffle)
+      let numbers = Array.from({ length: totalStudents }, (_, i) => i + 1);
+      for (let i = numbers.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [numbers[i], numbers[j]] = [numbers[j], numbers[i]];
+      }
+
+      // 활성화된 자리 중 무작위로 선택하여 번호 배치
+      // (학생 수보다 활성 자리가 많을 경우 일부 자리는 비어있게 됨)
+      let shuffledCells = [...activeCells];
+      for (let i = shuffledCells.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffledCells[i], shuffledCells[j]] = [shuffledCells[j], shuffledCells[i]];
+      }
+
+      for (let i = 0; i < totalStudents; i++) {
+        shuffledCells[i].studentNum = numbers[i];
+      }
+
+      saveGridData();
+      renderGrid();
+    }
+
+    // --- [4] UI 모드 전환 및 이벤트 바인딩 ---
+    function updateEditModeUI() {
+      const banner = document.getElementById('editModeBanner');
+      const icon = document.getElementById('modeIcon');
+      const text = document.getElementById('modeText');
+      const btn = document.getElementById('btnToggleMode');
+
+      if (isEditMode) {
+        banner.classList.remove('hidden');
+        icon.className = 'fa-solid fa-check text-emerald-400';
+        text.textContent = '편집 종료하기';
+        btn.className = 'px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs sm:text-sm border border-emerald-500 flex items-center gap-1.5 transition shadow';
+      } else {
+        banner.classList.add('hidden');
+        icon.className = 'fa-solid fa-gear text-indigo-400';
+        text.textContent = '자리 편집 모드';
+        btn.className = 'px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs sm:text-sm border border-slate-700 flex items-center gap-1.5 transition shadow';
+      }
+      renderGrid();
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      loadGridData();
+      document.getElementById('inputTotalStudents').value = totalStudents;
+      renderGrid();
+
+      // 학생 수 입력 변경 시
+      document.getElementById('inputTotalStudents').addEventListener('change', (e) => {
+        let val = parseInt(e.target.value, 10);
+        if (isNaN(val) || val < 1) val = 1;
+        if (val > 100) val = 100;
+        totalStudents = val;
+        e.target.value = val;
+        saveGridData();
+        renderGrid();
+      });
+
+      // 편집 모드 토글 버튼
+      document.getElementById('btnToggleMode').addEventListener('click', () => {
+        isEditMode = !isEditMode;
+        updateEditModeUI();
+      });
+
+      document.getElementById('btnCloseEditMode').addEventListener('click', () => {
+        isEditMode = false;
+        updateEditModeUI();
+      });
+
+      // 자리 섞기 버튼
+      document.getElementById('btnRunShuffle').addEventListener('click', () => {
+        runSeatShuffle();
+      });
+
+      // 모든 자리 비우기
+      document.getElementById('btnClearAllSeats').addEventListener('click', () => {
+        showConfirm('배치된 모든 번호를 지우시겠습니까? (자리 틀은 유지됩니다)', () => {
+          gridData.forEach(c => c.studentNum = null);
+          saveGridData();
+          renderGrid();
+        });
+      });
+
+      // 기본 배치 불러오기
+      document.getElementById('btnResetDefaultGrid').addEventListener('click', () => {
+        showConfirm('그리드 배치를 기본 형태로 초기화하시겠습니까?', () => {
+          initDefaultGrid();
+          saveGridData();
+          renderGrid();
+        });
+      });
+    });
+  </script>
+</body>
+</html>
